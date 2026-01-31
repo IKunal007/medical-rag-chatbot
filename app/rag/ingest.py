@@ -8,67 +8,42 @@ DOCS_PATH = "app/store/docs.pkl"
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
+# Load or create FAISS index
+def load_or_create_index(dim: int):
+    if os.path.exists(INDEX_PATH):
+        return faiss.read_index(INDEX_PATH)
+    return faiss.IndexFlatL2(dim)
 
-def chunk_text(text: str, chunk_size=300, overlap=50):
-    words = text.split()
-    chunks = []
+# Load existing documents
+def load_existing_docs():
+    if os.path.exists(DOCS_PATH):
+        with open(DOCS_PATH, "rb") as f:
+            return pickle.load(f)
+    return []
 
-    for i in range(0, len(words), chunk_size - overlap):
-        chunk = " ".join(words[i:i + chunk_size])
-        chunks.append(chunk)
+# Ingest chunks with metadata
+def ingest_chunks(chunks_with_meta: list[dict]) -> int:
 
-    return chunks
+    if not chunks_with_meta:
+        return 0
 
-
-def ingest_text(text: str, source: str, page: int | None = None) -> int:
     os.makedirs("app/store", exist_ok=True)
+    texts = [c["text"] for c in chunks_with_meta]
+    embeddings = model.encode(texts, normalize_embeddings=True)
 
-    raw_chunks = chunk_text(text)
+    # Load or create index
+    index = load_or_create_index(embeddings.shape[1])
+    assert index.d == embeddings.shape[1]
 
-    # 🔑 attach metadata to each chunk
-    chunks_with_meta = [
-        {
-            "text": chunk,
-            "source": source,
-            "page": page
-        }
-        for chunk in raw_chunks
-    ]
-
-    embeddings = model.encode([c["text"] for c in chunks_with_meta])
-
-    index = faiss.IndexFlatL2(embeddings.shape[1])
     index.add(embeddings)
 
+    # Append metadata
+    docs = load_existing_docs()
+    docs.extend(chunks_with_meta)
+
+    # Persist
     faiss.write_index(index, INDEX_PATH)
-
     with open(DOCS_PATH, "wb") as f:
-        pickle.dump(chunks_with_meta, f)
-
-    return len(chunks_with_meta)
-
-
-def ingest_pages(pages, source: str) -> int:
-    os.makedirs("app/store", exist_ok=True)
-
-    chunks_with_meta = []
-
-    for p in pages:
-        raw_chunks = chunk_text(p["text"])
-        for ch in raw_chunks:
-            chunks_with_meta.append({
-                "text": ch,
-                "source": source,
-                "page": p["page"]
-            })
-
-    embeddings = model.encode([c["text"] for c in chunks_with_meta])
-
-    index = faiss.IndexFlatL2(embeddings.shape[1])
-    index.add(embeddings)
-    faiss.write_index(index, INDEX_PATH)
-
-    with open(DOCS_PATH, "wb") as f:
-        pickle.dump(chunks_with_meta, f)
+        pickle.dump(docs, f)
 
     return len(chunks_with_meta)
