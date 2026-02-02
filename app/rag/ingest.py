@@ -2,6 +2,8 @@ import os
 import faiss
 import pickle
 from sentence_transformers import SentenceTransformer
+from app.rag.chunking import clean_extracted_text, chunk_by_sections
+from app.rag.utils import hash_text  # wherever your hash_text lives
 
 INDEX_PATH = "app/store/index.faiss"
 DOCS_PATH = "app/store/docs.pkl"
@@ -20,6 +22,42 @@ def load_existing_docs():
         with open(DOCS_PATH, "rb") as f:
             return pickle.load(f)
     return []
+
+
+
+def ingest_text(
+    text: str,
+    source: str,
+    page: int | None = None,
+    location: str | None = None,
+):
+    """
+    Convert raw text into paragraph-based chunks with metadata,
+    then ingest them into FAISS.
+    """
+    clean_text = clean_extracted_text(text)
+    section_chunks = chunk_by_sections(clean_text)
+
+    chunks_with_meta = []
+
+    for i, chunk in enumerate(section_chunks):
+        text = chunk["text"].strip()
+        if not text:
+            continue
+
+        chunks_with_meta.append({
+            "text": chunk["text"],
+            "section": chunk["section"],
+            "section_level": chunk.get("level", 1),  # heuristic, optional
+            "chunk_hash": hash_text(chunk["text"]),
+            "source": source,
+            "page": page,
+            "location": location,
+            "chunk_id": f"{source}_p{page}_s{i}" if page is not None else f"{source}_s{i}",
+        })
+
+    return ingest_chunks(chunks_with_meta)
+
 
 # Ingest chunks with metadata
 def ingest_chunks(chunks_with_meta: list[dict]) -> int:
@@ -50,7 +88,13 @@ def ingest_chunks(chunks_with_meta: list[dict]) -> int:
         return 0  # nothing new
 
     # Embed ONLY new chunks
-    embeddings = model.encode(new_texts, normalize_embeddings=True)
+    embeddings = model.encode(
+        new_texts,
+        batch_size=32,
+        show_progress_bar=True,
+        normalize_embeddings=True,
+    )
+
 
     # Load or create FAISS index
     index = load_or_create_index(embeddings.shape[1])

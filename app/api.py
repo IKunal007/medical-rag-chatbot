@@ -10,7 +10,7 @@ from app.rag.prompt import build_prompt
 from app.rag.llm import call_llm
 from app.rag.utils import chunk_text, hash_text
 from app.rag.ingest import ingest_chunks
-from app.rag.loaders.pdf_loader import extract_pdf_text
+from app.rag.loaders.pdf_loader import extract_pdf_sections
 from app.rag.loaders.docx_loader import extract_docx_text
 from app.rag.loaders.excel_loader import extract_excel_text
 
@@ -36,10 +36,14 @@ def chat(req: ChatRequest):
     chunks = retrieve(memory_query)
 
     if not chunks:
+        refusal = "I don't know. The information is not available in the uploaded documents."
+
+        add_turn(session_id, "user", req.query)
+        add_turn(session_id, "assistant", refusal)
         return {
             "answer": [
                 {
-                    "text": "I don't know. The information is not available in the uploaded documents.",
+                    "text": refusal,
                     "document": None,
                     "page": None,
                     "link": None
@@ -148,8 +152,6 @@ def health():
     return {"status": "ok"}
 
 
-from typing import List
-import tempfile, os
 
 @router.post("/ingest")
 async def ingest(files: List[UploadFile] = File(...)):
@@ -165,16 +167,31 @@ async def ingest(files: List[UploadFile] = File(...)):
             path = tmp.name
 
         try:
+            # ---------------- PDF (SECTION-AWARE) ----------------
+            if name.endswith(".pdf"):
+                chunks_with_meta = extract_pdf_sections(
+                    file_path=path,
+                    source_name=filename
+                )
+
+                if not chunks_with_meta:
+                    raise HTTPException(400, "No extractable text found in PDF")
+
+                count = ingest_chunks(chunks_with_meta)
+
+                results.append({
+                    "filename": filename,
+                    "status": "ingested",
+                    "chunks_created": count
+                })
+                continue  # 🚨 skip generic chunking
+
+            # ---------------- OTHER FILE TYPES ----------------
             pages = []
 
             if name.endswith(".txt"):
                 text = content.decode("utf-8")
                 pages = [{"text": text, "page": None}]
-
-            elif name.endswith(".pdf"):
-                pages = extract_pdf_text(path)
-                if not pages:
-                    raise HTTPException(400, "No extractable text found in PDF")
 
             elif name.endswith(".docx"):
                 pages = extract_docx_text(path)
@@ -190,9 +207,9 @@ async def ingest(files: List[UploadFile] = File(...)):
                 })
                 continue
 
-            # Build chunks WITH metadata
+            # ---------------- GENERIC CHUNKING ----------------
             chunks_with_meta = []
-            for p_idx, p in enumerate(pages):
+            for p in pages:
                 for c_idx, ch in enumerate(chunk_text(p["text"])):
                     chunks_with_meta.append({
                         "chunk_id": f"{filename}_p{p.get('page')}_c{c_idx}",
@@ -227,4 +244,3 @@ async def ingest(files: List[UploadFile] = File(...)):
         "message": "Batch ingestion completed",
         "files": results
     }
-

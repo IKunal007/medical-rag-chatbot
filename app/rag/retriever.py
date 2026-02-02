@@ -29,10 +29,10 @@ def load_resources():
             _docs = pickle.load(f)
 
 
-def retrieve(query: str, k: int = 3):
+def retrieve(query: str, k: int = 8):
     load_resources()
     q_emb = _model.encode([query])
     distances, ids = _index.search(q_emb, k)
-    if distances[0][0] > 1.2:   # threshold, tune later
+    if distances[0][0] > 1.8:   # threshold, tune later
         return []
     return [_docs[i] for i in ids[0]]

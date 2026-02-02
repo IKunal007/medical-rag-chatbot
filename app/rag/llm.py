@@ -9,7 +9,7 @@ def call_llm(prompt: str) -> dict:
             "model": "llama3.1:8b",
             "prompt": prompt,
             "stream": False,
-            "temperature": 0  # important for consistency
+            "temperature": 0
         },
         timeout=60
     )
@@ -17,17 +17,19 @@ def call_llm(prompt: str) -> dict:
     if res.status_code != 200:
         raise RuntimeError(f"Ollama error: {res.text}")
 
-    data = res.json()
+    raw = res.json().get("response", "").strip()
 
-    if "response" not in data:
-        raise RuntimeError(f"Unexpected Ollama payload: {data}")
-
-    raw = data["response"].strip()
-
+    # Case 1: Valid JSON
     try:
         return json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(
-            f"LLM did not return valid JSON.\nRaw output:\n{raw}"
-        ) from e
 
+    # Case 2: LLM violated format → force safe refusal
+    except json.JSONDecodeError:
+        return {
+            "answer": [
+                {
+                    "sentence": "I don't know. The information is not available in the provided documents.",
+                    "chunk_ids": []
+                }
+            ]
+        }
