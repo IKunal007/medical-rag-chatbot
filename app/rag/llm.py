@@ -1,31 +1,33 @@
-import requests
+import requests, json
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
-def call_llm(prompt: str) -> str:
+def call_llm(prompt: str) -> dict:
     res = requests.post(
         OLLAMA_URL,
         json={
             "model": "llama3.1:8b",
             "prompt": prompt,
-            "stream": False
+            "stream": False,
+            "temperature": 0  # important for consistency
         },
         timeout=60
     )
 
-    # If Ollama itself failed
     if res.status_code != 200:
         raise RuntimeError(f"Ollama error: {res.text}")
 
     data = res.json()
 
-    # Case 1: normal response
-    if "response" in data:
-        return data["response"]
+    if "response" not in data:
+        raise RuntimeError(f"Unexpected Ollama payload: {data}")
 
-    # Case 2: Ollama error payload
-    if "error" in data:
-        raise RuntimeError(f"Ollama returned error: {data['error']}")
+    raw = data["response"].strip()
 
-    # Case 3: unexpected shape
-    raise RuntimeError(f"Unexpected Ollama response: {data}")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            f"LLM did not return valid JSON.\nRaw output:\n{raw}"
+        ) from e
+

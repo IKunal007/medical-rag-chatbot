@@ -1,25 +1,32 @@
 def build_prompt(context, question):
-    return f"""=
+    return f"""
 You are a retrieval-augmented assistant.
 
-You MUST answer using ONLY the information provided in the context.
-Do NOT use any external knowledge or assumptions.
+You MUST use ONLY the information provided in the context.
+Do NOT use any external knowledge.
 
 Rules:
-- If the answer is explicitly stated in the context, answer clearly and concisely.
-- If the context does not contain the information, reply exactly:
+- If relevant information exists in the context, you MUST answer.
+- You may paraphrase or summarize information from the context.
+- Every answer sentence MUST be supported by one or more chunk_ids.
+- Do NOT invent chunk_ids.
+- If no relevant information exists, reply exactly:
   "I don't know. The information is not available in the provided documents."
-- If the question makes an assumption that is not supported by the context, reply exactly:
+- If the question contains an unsupported assumption, reply exactly:
   "The document does not support that statement."
-- Do NOT infer, extrapolate, or guess beyond the context.
-- Do NOT add medical advice or opinions not stated in the documents.
-- Do not provide clinical recommendations unless they are explicitly stated in the context.
+- Do NOT add medical advice or recommendations.
 
+Return ONLY valid JSON in this format:
 
-When answering:
-- Prefer factual, neutral language.
-- Use complete sentences.
-- Do not mention the word "context" or "documents" unless refusing.
+{{
+  "answer": [
+    {{
+      "sentence": "...",
+      "chunk_ids": ["chunk_id_1"]
+    }}
+  ]
+}}
+
 Context:
 {context}
 

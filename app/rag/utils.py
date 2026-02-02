@@ -1,4 +1,5 @@
-# app/rag/utils.py
+import hashlib
+
 
 def chunk_text(text: str, chunk_size=300, overlap=50):
     words = text.split()
@@ -10,3 +11,8 @@ def chunk_text(text: str, chunk_size=300, overlap=50):
             chunks.append(chunk)
 
     return chunks
+
+
+def hash_text(text: str) -> str:
+    normalized = " ".join(text.lower().split())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
