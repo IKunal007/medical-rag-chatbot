@@ -160,29 +160,6 @@ Example Response Payload
 
 ---
 
-## Repository Structure
-```text
-medic-chatbot/
-├─ app/
-│ ├─ main.py FastAPI application entry point
-│ ├─ api/
-│ │ ├─ api.py Chat endpoint definition
-│ │ ├─ schemas.py Request and response models
-│ ├─ rag/
-│ │ ├─ ingest.py Document ingestion pipeline
-│ │ ├─ retriever.py FAISS retrieval logic
-│ │ ├─ llm.py Ollama client
-│ │ ├─ prompt.py Grounded prompt construction
-│ │ └─ utils.py Shared utilities
-│ ├─ streamlit_app.py Frontend UI
-│
-├─ Dockerfile.app
-├─ docker-compose.yml
-├─ pyproject.toml
-├─ uv.lock
-├─ .dockerignore
-└─ README.md
-```
 
 ## Deployment Strategy
 
