@@ -1,10 +1,13 @@
-import requests, json
+import requests, json, os
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_BASE_URL = os.getenv(
+    "OLLAMA_BASE_URL",
+    "http://localhost:11434"  # fallback for local non-Docker runs
+)
 
 def call_llm(prompt: str) -> dict:
     res = requests.post(
-        OLLAMA_URL,
+        f"{OLLAMA_BASE_URL}/api/generate",
         json={
             "model": "llama3.1:8b",
             "prompt": prompt,
