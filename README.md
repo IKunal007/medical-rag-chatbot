@@ -161,7 +161,7 @@ Example Response Payload
 ---
 
 ## Repository Structure
-
+```text
 medic-chatbot/
 ├─ app/
 │ ├─ main.py FastAPI application entry point
@@ -182,6 +182,7 @@ medic-chatbot/
 ├─ uv.lock
 ├─ .dockerignore
 └─ README.md
+```
 
 ## Deployment Strategy
 
