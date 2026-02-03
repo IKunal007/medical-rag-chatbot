@@ -107,8 +107,10 @@ The system follows a clean frontend-backend separation.
   "query": "What are the symptoms of diabetes?",
   "session_id": "session_123"
 }
+```
 
-Example Response Payload 
+Example Response Payload
+
 ```json
 {
   "answer": [
@@ -120,6 +122,7 @@ Example Response Payload
     }
   ]
 }
+```
 
 ## Technology Stack
 
@@ -161,17 +164,17 @@ Example Response Payload
 
 medic-chatbot/
 ├─ app/
-│  ├─ main.py                FastAPI application entry point
-│  ├─ api/
-│  │  ├─ api.py              Chat endpoint definition
-│  │  ├─ schemas.py          Request and response models
-│  ├─ rag/
-│  │  ├─ ingest.py           Document ingestion pipeline
-│  │  ├─ retriever.py        FAISS retrieval logic
-│  │  ├─ llm.py              Ollama client
-│  │  ├─ prompt.py           Grounded prompt construction
-│  │  └─ utils.py            Shared utilities
-│  ├─ streamlit_app.py       Frontend UI
+│ ├─ main.py FastAPI application entry point
+│ ├─ api/
+│ │ ├─ api.py Chat endpoint definition
+│ │ ├─ schemas.py Request and response models
+│ ├─ rag/
+│ │ ├─ ingest.py Document ingestion pipeline
+│ │ ├─ retriever.py FAISS retrieval logic
+│ │ ├─ llm.py Ollama client
+│ │ ├─ prompt.py Grounded prompt construction
+│ │ └─ utils.py Shared utilities
+│ ├─ streamlit_app.py Frontend UI
 │
 ├─ Dockerfile.app
 ├─ docker-compose.yml
@@ -221,6 +224,7 @@ ollama serve
 
 - Streamlit UI: http://localhost:8501
 - FastAPI documentation: http://localhost:8000/docs
+```
 
 ---
 
