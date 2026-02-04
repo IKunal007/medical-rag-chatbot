@@ -3,7 +3,7 @@ import faiss
 import pickle
 from sentence_transformers import SentenceTransformer
 from app.rag.chunking import clean_extracted_text, chunk_by_sections
-from app.rag.utils import hash_text  # wherever your hash_text lives
+from app.rag.utils import hash_text 
 
 INDEX_PATH = "app/store/index.faiss"
 DOCS_PATH = "app/store/docs.pkl"

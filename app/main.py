@@ -16,8 +16,8 @@ async def lifespan(app: FastAPI):
         print(f"[Startup] Drive ingestion failed: {e}")
 
     yield
-
-    # Shutdown (if needed)
+    
+    # Shutdown
     pass
 
 app = FastAPI(title="Local RAG Backend", lifespan=lifespan)

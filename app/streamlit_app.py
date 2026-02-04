@@ -100,7 +100,7 @@ if uploaded_files and not st.session_state.ingesting:
                             f"📄 **{f['filename']}** — {f['status']}"
                         )
 
-                    # ✅ RESET chat ONLY after successful ingestion
+                    #  RESET chat ONLY after successful ingestion
                     st.session_state.messages = []
                     st.session_state.session_id = str(uuid.uuid4())
 
@@ -171,7 +171,7 @@ if user_query:
 
                 if doc:
                     link = a.get("link")
-                
+
                     if link:
                         st.markdown(
                             f"📄 [{doc} · page {page}]({link})",
