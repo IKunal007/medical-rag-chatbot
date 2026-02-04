@@ -170,7 +170,16 @@ if user_query:
                 st.write(text)
 
                 if doc:
-                    st.caption(f"📄 {doc} · page {page}")
+                    link = a.get("link")
+                
+                    if link:
+                        st.markdown(
+                            f"📄 [{doc} · page {page}]({link})",
+                            unsafe_allow_html=False
+                        )
+                    else:
+                        st.caption(f"📄 {doc} · page {page}")
+
 
             reply = " ".join(full_text)
 
