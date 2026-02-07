@@ -221,8 +221,8 @@ def render_report_page():
         st.subheader("Upload Document To Generate Report")
     
         uploaded_files = st.file_uploader(
-            "Upload PDF",
-            type=["pdf"],
+            "Upload PDF & DOCX files",
+            type=["pdf", "docx"],
             accept_multiple_files=False
         )
     
@@ -385,16 +385,26 @@ def render_report_page():
         # ----------------------------------
         # Reset / New report button
         # ----------------------------------
-        if st.button("🔄 Upload a new document"):
+        st.divider()
+        
+        if st.button("🔄 Start New Report"):
+            # 1️⃣ Reset backend session
+            requests.post(
+                f"{API_BASE}/report/reset",
+                json={"session_id": st.session_state.session_id},
+                timeout=10
+            )
+        
+            # 2️⃣ Reset frontend state
             st.session_state.report_doc_uploaded = False
             st.session_state.available_sections = []
             st.session_state.upload_success = False
-
-            # Optional: clear any previous selections
-            st.session_state.pop("selected_sections", None)
-
+        
+            # 3️⃣ New session ID (important)
+            st.session_state.session_id = str(uuid.uuid4())
+        
             st.rerun()
-
+        
 
 
 # ==========================================================

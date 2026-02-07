@@ -8,10 +8,11 @@ from app.report.assembler import assemble_pdf
 from app.report.extractor import (
     load_docling_document,
     extract_exact_section,
-    extract_tables,
-    extract_figures,
+    extract_docx_sections,
     summarize_text
 )
+from app.report.table_extractor import extract_pdf_tables, extract_docx_tables
+from app.report.figure_extractor import extract_pdf_figures
 from app.report.planner import plan_report_sections
 from app.report.heading_extractor import extract_markdown_headings
 
@@ -245,7 +246,8 @@ async def ingest(
 
                 # ✅ Set active PDF for this session
                 set_session_value(session_id, "active_pdf", filename)
-            
+                set_session_value(session_id, "active_doc_type", "pdf")
+
                 # ✅ Invalidate cached section list
                 set_session_value(session_id, "available_sections", None) 
 
@@ -269,6 +271,11 @@ async def ingest(
 
             elif name.endswith(".docx"):
                 pages = extract_docx_text(tmp_path)
+                sections = extract_docx_sections(tmp_path)
+
+                set_session_value(session_id, "active_pdf", filename)
+                set_session_value(session_id, "docx_sections", sections)
+                set_session_value(session_id, "active_doc_type", "docx")
 
             elif name.endswith(".xlsx"):
                 pages = extract_excel_text(tmp_path)
@@ -328,11 +335,9 @@ def generate_report(req: ReportRequest):
     # -----------------------------
     if req.sections:
         sections_plan = req.sections
-
     elif req.user_prompt:
         plan = plan_report_sections(req.user_prompt)
         sections_plan = plan["sections"]
-
     else:
         raise HTTPException(
             status_code=400,
@@ -340,21 +345,27 @@ def generate_report(req: ReportRequest):
         )
 
     # -----------------------------
-    # 2. Resolve PDF
+    # 2. Resolve document type
     # -----------------------------
-    
+    doc_type = get_session_value(req.session_id, "active_doc_type")
 
-    filename = get_session_value(req.session_id, "active_pdf")
+    if doc_type == "pdf":
+        filename = get_session_value(req.session_id, "active_pdf")
+        if not filename:
+            raise HTTPException(400, "No PDF uploaded in this session")
 
-    if not filename:
-        raise HTTPException(
-            status_code=400,
-            detail="No document uploaded in this session"
-        )
+        pdf_path = get_uploaded_pdf(filename)
+        doc = load_docling_document(pdf_path)
 
-    pdf_path = get_uploaded_pdf(filename)
+    elif doc_type == "docx":
+        docx_sections = get_session_value(req.session_id, "docx_sections")
+        if not docx_sections:
+            raise HTTPException(400, "No DOCX content available in this session")
 
-    doc = load_docling_document(pdf_path)
+        doc = None  # no Docling for DOCX
+
+    else:
+        raise HTTPException(400, "Unsupported document type")
 
     # -----------------------------
     # 3. Execute extraction plan
@@ -365,24 +376,49 @@ def generate_report(req: ReportRequest):
 
     for section in sections_plan:
 
+        # -------- TEXT EXTRACTION --------
         if section.action == "extract_exact":
+
+            if doc_type == "pdf":
+                content = extract_exact_section(doc, section.name)
+
+            elif doc_type == "docx":
+                docx_sections = get_session_value(req.session_id, "docx_sections") or {}
+                content = docx_sections.get(section.name, "")
+
             report_state[section.name] = {
                 "type": "text",
-                "content": extract_exact_section(doc, section.name),
+                "content": content,
             }
 
-        elif section.action == "extract_tables":
+        # -------- TABLES (PDF ONLY) --------
+        elif section.action == "extract_pdf_tables":
+            if doc_type == "pdf":
+                tables = extract_pdf_tables(doc)
+
+            elif doc_type == "docx":
+                docx_path = get_session_value(req.session_id, "active_docx")
+                tables = extract_docx_tables(docx_path)
+
+            else:
+                tables = []
+
             report_state[section.name] = {
                 "type": "tables",
-                "content": extract_tables(doc),
+                "content": tables,
             }
 
-        elif section.action == "extract_figures":
+        # -------- FIGURES (PDF ONLY) --------
+        elif section.action == "extract_pdf_figures":
+            if doc_type != "pdf":
+                continue
+
             report_state[section.name] = {
                 "type": "images",
-                "content": extract_figures(doc, figures_dir),
+                "content": extract_pdf_figures(doc, figures_dir),
             }
 
+        # -------- SUMMARY --------
         elif section.action == "summarize":
             source = section.source_section
             if not source or source not in report_state:
@@ -399,22 +435,21 @@ def generate_report(req: ReportRequest):
 
     # -----------------------------
     # 4. Assemble PDF
-    #   -----------------------------
-
+    # -----------------------------
     REPORT_DIR = Path("app/store/reports")
-    REPORT_DIR.mkdir(parents=True, exist_ok=True    )
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
-    output_path = REPORT_DIR / "report.pdf  "
+    output_path = REPORT_DIR / "report.pdf"
 
-    assemble_pdf(report_state, output_path  )
+    assemble_pdf(report_state, output_path)
 
     set_session_value(
         session_id=req.session_id,
         key="report_path",
         value=str(output_path)
     )
-    return {"report_path": str(output_path)}
 
+    return {"report_path": str(output_path)}
 
 @router.get("/report/sections")
 def get_report_sections(session_id: str):
@@ -426,22 +461,39 @@ def get_report_sections(session_id: str):
         return {"sections": cached}
 
     # ---------------------------------------
-    # 2️⃣ Resolve active PDF
+    # 2️⃣ Resolve active document + type
     # ---------------------------------------
-    filename = get_session_value(session_id, "active_pdf")
-    if not filename:
+    filename = get_session_value(session_id, "active_pdf")  # keep name for backward compatibility
+    doc_type = get_session_value(session_id, "active_doc_type")
+
+    if not filename or not doc_type:
         raise HTTPException(
             status_code=400,
             detail="No document uploaded for this session"
         )
 
-    pdf_path = get_uploaded_pdf(filename)
+    # ---------------------------------------
+    # 3️⃣ Extract headings based on type
+    # ---------------------------------------
+    if doc_type == "pdf":
+        pdf_path = get_uploaded_pdf(filename)
+        doc = load_docling_document(pdf_path)
+        headings = extract_markdown_headings(doc)
 
-    # ---------------------------------------
-    # 3️⃣ Expensive work (only once)
-    # ---------------------------------------
-    doc = load_docling_document(pdf_path)
-    sections = extract_markdown_headings(doc)
+    elif doc_type == "docx":
+        sections = get_session_value(session_id, "docx_sections")
+        if not sections:
+            raise HTTPException(
+                status_code=500,
+                detail="DOCX sections not found in session"
+            )
+        headings = list(sections.keys())
+
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported document type: {doc_type}"
+        )
 
     # ---------------------------------------
     # 4️⃣ Cache result
@@ -449,11 +501,10 @@ def get_report_sections(session_id: str):
     set_session_value(
         session_id=session_id,
         key="available_sections",
-        value=sections
+        value=headings
     )
 
-    return {"sections": sections}
-
+    return {"sections": headings}
 
 @router.get("/report/download")
 def download_report(session_id: str):
@@ -478,3 +529,12 @@ def download_report(session_id: str):
         media_type="application/pdf",
         filename="medical_report.pdf"
     )
+
+
+@router.post("/report/reset")
+def reset_report_session(session_id: str):
+    from app.memory.session_store import clear_session
+
+    clear_session(session_id)
+
+    return {"status": "reset"}

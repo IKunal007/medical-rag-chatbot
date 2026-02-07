@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import List
 import re
-from PIL import Image as PILImage
 from app.rag.llm import call_llm_raw
+from docx import Document
 
 
 def load_docling_document(pdf_path: Path):
@@ -84,94 +84,36 @@ def extract_exact_section(doc, section_name: str) -> str:
     return body
 
 
-def extract_tables(doc):
+def extract_docx_sections(path: str) -> dict[str, str]:
     """
-    Extract tables from Docling markdown.
-    Returns list of tables with rows preserved exactly.
+    Returns:
+    {
+        "Introduction": "...",
+        "Methods": "...",
+        ...
+    }
     """
+    doc = Document(path)
 
-    md = doc.export_to_markdown()
+    sections = {}
+    current_heading = None
+    buffer = []
 
-    tables = []
+    for p in doc.paragraphs:
+        if p.style.name.startswith("Heading"):
+            if current_heading and buffer:
+                sections[current_heading] = "\n".join(buffer).strip()
 
-    table_blocks = re.findall(
-        r"((?:\|.+\|\n)+)",
-        md
-    )
+            current_heading = p.text.strip()
+            buffer = []
+        else:
+            if current_heading:
+                buffer.append(p.text)
 
-    for block in table_blocks:
-        lines = [l.strip() for l in block.splitlines() if l.strip()]
+    if current_heading and buffer:
+        sections[current_heading] = "\n".join(buffer).strip()
 
-        # Skip malformed tables
-        if len(lines) < 2:
-            continue
-
-        rows = []
-
-        for line in lines:
-            # Skip separator row
-            if re.match(r"^\|\s*-+", line):
-                continue
-
-            cells = [c.strip() for c in line.strip("|").split("|")]
-            rows.append(cells)
-
-        if rows:
-            tables.append({
-                "rows": rows
-            })
-
-    return tables
-
-def is_useful_image(path: Path) -> bool:
-    img = PILImage.open(path)
-    w, h = img.size
-
-    # 🚫 tiny images (logos, icons)
-    if w < 300 or h < 300:
-        return False
-
-    # 🚫 extreme aspect ratios (lines, separators)
-    if w / h > 5 or h / w > 5:
-        return False
-
-    return True
-
-
-def extract_figures(doc, output_dir: Path) -> List[Path]:
-    """
-    Extracts useful figures/images and saves them as PNG files.
-    Filters out logos, icons, and decorative images.
-    """
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    image_paths: List[Path] = []
-
-    if not hasattr(doc, "pictures") or not doc.pictures:
-        return image_paths
-
-    for i, pic in enumerate(doc.pictures):
-        if not pic.image or not hasattr(pic.image, "pil_image"):
-            continue
-
-        img_path = output_dir / f"figure_{i}.png"
-
-        try:
-            # Save image first
-            pic.image.pil_image.save(img_path)
-
-            # ✅ Keep only meaningful figures
-            if is_useful_image(img_path):
-                image_paths.append(img_path)
-            else:
-                img_path.unlink(missing_ok=True)
-
-        except Exception:
-            # Safety: never break report generation because of one bad image
-            if img_path.exists():
-                img_path.unlink()
-
-    return image_paths
+    return sections
 
 
 def summarize_text(text: str) -> str:
