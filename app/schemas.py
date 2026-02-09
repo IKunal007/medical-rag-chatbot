@@ -7,7 +7,7 @@ class ChatRequest(BaseModel):
 
 class AnswerChunk(BaseModel):
     text: str
-    document: str
+    document: Optional[str] = None
     page: Optional[Union[int, str]] = None
     link: Optional[str] = None
 class ChatResponse(BaseModel):

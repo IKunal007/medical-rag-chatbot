@@ -3,9 +3,7 @@ import faiss
 import pickle
 from app.rag.chunking import clean_extracted_text, chunk_by_sections
 from app.rag.utils import hash_text
-
-INDEX_PATH = "store/index.faiss"
-DOCS_PATH = "store/docs.pkl"
+from app.memory.utils import DOCS_PATH, INDEX_PATH
 
 _model = None
 
@@ -19,9 +17,10 @@ def get_embedding_model():
 
 
 def load_or_create_index(dim: int):
-    if os.path.exists(INDEX_PATH):
-        return faiss.read_index(INDEX_PATH)
+    if INDEX_PATH.exists():
+        return faiss.read_index(str(INDEX_PATH))
     return faiss.IndexFlatL2(dim)
+
 
 
 def load_existing_docs():
@@ -69,8 +68,11 @@ def ingest_chunks(chunks_with_meta: list[dict]) -> int:
 
     existing_docs = load_existing_docs()
     existing_hashes = {
-        d["chunk_hash"] for d in existing_docs if "chunk_hash" in d
+        d["chunk_hash"]
+        for d in existing_docs
+        if d.get("chunk_hash") and d.get("source") == chunks_with_meta[0].get("source")
     }
+
 
     new_chunks = []
     new_texts = []
@@ -98,8 +100,13 @@ def ingest_chunks(chunks_with_meta: list[dict]) -> int:
 
     existing_docs.extend(new_chunks)
 
-    faiss.write_index(index, INDEX_PATH)
+    faiss.write_index(index, str(INDEX_PATH))
     with open(DOCS_PATH, "wb") as f:
         pickle.dump(existing_docs, f)
+    
+    index = faiss.read_index(str(INDEX_PATH))
+    print("FAISS index size:", index.ntotal)
+    print("Docs stored:", len(load_existing_docs()))
+
 
     return len(new_chunks)

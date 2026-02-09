@@ -1,9 +1,6 @@
 import requests, json, os
+from app.memory.utils import OLLAMA_BASE_URL
 
-OLLAMA_BASE_URL = os.getenv(
-    "OLLAMA_BASE_URL",
-    "http://localhost:11434"  # fallback for local non-Docker runs
-)
 
 def call_llm(prompt: str) -> dict:
     res = requests.post(

@@ -1,7 +1,6 @@
 # app/store/file_resolver.py
 from pathlib import Path
-
-UPLOAD_DIR = Path("store/uploads")
+from app.memory.utils import UPLOAD_DIR
 
 
 def get_uploaded_pdf(filename: str) -> Path:

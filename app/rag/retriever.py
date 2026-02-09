@@ -2,6 +2,7 @@ import os
 import faiss
 import pickle
 from sentence_transformers import SentenceTransformer
+from app.memory.utils import DOCS_PATH, INDEX_PATH
 
 _model = None
 _index = None
@@ -28,11 +29,24 @@ def load_resources():
         with open(DOCS_PATH, "rb") as f:
             _docs = pickle.load(f)
 
-
 def retrieve(query: str, k: int = 8):
+    if not query or not query.strip():
+        return []
+
     load_resources()
+
     q_emb = _model.encode([query])
     distances, ids = _index.search(q_emb, k)
-    if distances[0][0] > 1.8:   # threshold, tune later
-        return []
-    return [_docs[i] for i in ids[0]]
+
+    results = []
+    for dist, idx in zip(distances[0], ids[0]):
+        chunk = _docs[idx].copy()      # flatten chunk
+        chunk["distance"] = float(dist)
+        results.append(chunk)
+
+
+    print("RETRIEVE:", len(results), "chunks")
+    for r in results[:3]:
+        print(" -", r["source"], "dist=", r["distance"])
+
+    return results
