@@ -124,3 +124,21 @@ def chunk_by_sections(text: str):
         })
 
     return chunks
+
+def chunk_sections_safely(text):
+    section_chunks = chunk_by_sections(text)
+    final_chunks = []
+
+    for sc in section_chunks:
+        sub_chunks = chunk_by_paragraphs(
+            sc["text"],
+            target_words=250,
+            overlap_paragraphs=1
+        )
+        for ch in sub_chunks:
+            final_chunks.append({
+                "section": sc["section"],
+                "text": ch
+            })
+
+    return final_chunks

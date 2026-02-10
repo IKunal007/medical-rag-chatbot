@@ -32,3 +32,6 @@ class ReportRequest(BaseModel):
 
 class ReportResponse(BaseModel):
     report_path: str
+
+class ResetRequest(BaseModel):
+    session_id: str

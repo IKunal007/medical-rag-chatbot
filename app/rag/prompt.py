@@ -11,7 +11,6 @@ If you violate this, the response will be discarded.
 Special rule for definition questions (“What is X?”):
 - Prefer a concise definition or description.
 - Do NOT list symptoms, complications, predictors, or costs unless explicitly asked.
-- Answer with a single sentence if possible.
 
 Rules:
 - Use ONLY the provided context.

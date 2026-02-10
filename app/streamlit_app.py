@@ -211,6 +211,10 @@ def render_report_page():
     if "available_sections" not in st.session_state:
         st.session_state.available_sections = []
 
+    if "report_generated" not in st.session_state:
+        st.session_state.report_generated = False
+
+
     st.title("Report Generation")
     st.divider()
     
@@ -364,6 +368,8 @@ def render_report_page():
             return
 
         st.success("Report generated successfully!")
+        st.session_state.report_generated = True
+
 
         download_resp = requests.get(
             "http://api:8000/report/download",
@@ -387,23 +393,23 @@ def render_report_page():
         # ----------------------------------
         st.divider()
         
-        if st.button("🔄 Start New Report"):
-            # 1️⃣ Reset backend session
-            requests.post(
-                f"{API_BASE}/report/reset",
-                json={"session_id": st.session_state.session_id},
-                timeout=10
-            )
-        
-            # 2️⃣ Reset frontend state
-            st.session_state.report_doc_uploaded = False
-            st.session_state.available_sections = []
-            st.session_state.upload_success = False
-        
-            # 3️⃣ New session ID (important)
-            st.session_state.session_id = str(uuid.uuid4())
-        
-            st.rerun()
+    if st.button("🔄 Start New Report"):
+        # 1️⃣ Reset backend session
+        requests.post(
+            f"{API_BASE}/report/reset",
+            json={"session_id": st.session_state.session_id},
+            timeout=10
+        )
+    
+        # 2️⃣ Reset frontend state
+        st.session_state.report_doc_uploaded = False
+        st.session_state.available_sections = []
+        st.session_state.upload_success = False
+    
+        # 3️⃣ New session ID (important)
+        st.session_state.session_id = str(uuid.uuid4())
+    
+        st.rerun()
         
 
 

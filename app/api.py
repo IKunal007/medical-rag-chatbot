@@ -1,10 +1,15 @@
-from fileinput import filename
 import tempfile, os, shutil
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from typing import List
 from pathlib import Path
-from app.schemas import ChatResponse, ChatRequest, ReportRequest, ReportResponse
+from app.schemas import (
+    ChatResponse,
+    ChatRequest,
+    ReportRequest,
+    ReportResponse,
+    ResetRequest
+)
 from app.report.assembler import assemble_pdf
 from app.report.extractor import (
     load_docling_document,
@@ -59,6 +64,20 @@ def refusal_response():
         ]
     }
 
+def build_reference_link(location: str | None):
+    if not location:
+        return None
+
+    # Google Drive file
+    if location.startswith("gdrive:"):
+        file_id = location.replace("gdrive:", "")
+        return f"https://drive.google.com/file/d/{file_id}/view"
+
+    # Already a valid URL (uploaded PDFs, etc.)
+    if location.startswith("http"):
+        return location
+
+    return None
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -150,7 +169,7 @@ def chat(req: ChatRequest):
             "text": sentence,
             "document": c["source"],
             "page": c.get("page"),
-            "link": c.get("location")
+            "link": build_reference_link(c.get("location"))
         })
 
     if not answer_chunks:
@@ -181,7 +200,6 @@ async def ingest(
 
 
     # Ensure upload directory exists
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
     for file in files:
         filename = file.filename
@@ -520,40 +538,12 @@ def download_report(session_id: str):
     )
 
 @router.post("/report/reset")
-def reset_report_session(session_id: str):
+def reset_report_session(req: ResetRequest):
     from app.memory.session_store import clear_session
 
-    clear_session(session_id)
+    clear_session(req.session_id)
 
     return {"status": "reset"}
-
-# Temporary debug endpoint to inspect retrieval results without LLM in the loop
-from collections import defaultdict
-
-@router.get("/debug/retrieve")
-def debug_retrieve(q: str, k: int = 8):
-    """
-    Debug endpoint to inspect retrieval behavior.
-    No LLM, no confidence logic.
-    """
-
-    chunks = retrieve(q, k)
-
-    by_source = defaultdict(list)
-
-    for c in chunks:
-        by_source[c["source"]].append({
-            "page": c.get("page"),
-            "distance": round(c["distance"], 4),
-            "preview": c["text"][:200]
-        })
-
-    return {
-        "query": q,
-        "documents_considered": len(by_source),
-        "results": by_source
-    }
-
 
 #Endpoint to serve uploaded files
 @router.get("/files/{filename}")

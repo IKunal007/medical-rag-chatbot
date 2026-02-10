@@ -1,7 +1,7 @@
 import os
 import faiss
 import pickle
-from app.rag.chunking import clean_extracted_text, chunk_by_sections
+from app.rag.chunking import clean_extracted_text, chunk_sections_safely
 from app.rag.utils import hash_text
 from app.memory.utils import DOCS_PATH, INDEX_PATH
 
@@ -37,7 +37,7 @@ def ingest_text(
     location: str | None = None,
 ):
     clean_text = clean_extracted_text(text)
-    section_chunks = chunk_by_sections(clean_text)
+    section_chunks = chunk_sections_safely(clean_text)
 
     chunks_with_meta = []
 
