@@ -52,3 +52,27 @@ Context:
 Question:
 {question}
 """
+
+
+def build_report_planner_prompt(user_request: str) -> str:
+    return """
+You are a medical report planner.
+
+Your job is to decide which tools to call to generate the requested report.
+You must NOT extract text yourself.
+
+Rules:
+- Use extract_section for exact text extraction
+- Use extract_tables for tables
+- Use extract_figures for figures
+- Use summarize_section ONLY if a summary is requested
+- Preserve extracted text exactly
+- Return ONLY function calls in JSON
+- Do NOT answer in natural language
+- Return valid JSON ONLY
+
+User request:
+{user_request}
+"""
+
+

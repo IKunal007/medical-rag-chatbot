@@ -11,7 +11,10 @@ OLLAMA_BASE_URL = os.getenv(
     "OLLAMA_BASE_URL",
     "http://localhost:11434"  # fallback for local non-Docker runs
 )
-
+MODEL_NAME = os.getenv(
+    "OLLAMA_MODEL",
+    "llama3.1:8b"
+)
 def build_memory_aware_query(query: str, memory: list):
     if not memory:
         return query

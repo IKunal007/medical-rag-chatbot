@@ -34,7 +34,7 @@ def wait_for_api(timeout=30):
     return False
 
 
-with st.spinner("Starting backend…"):
+with st.spinner("Loading..."):
     if not wait_for_api():
         st.error("Backend is not ready. Please refresh.")
         st.stop()
@@ -221,7 +221,7 @@ def render_report_page():
     # ----------------------------------
     # Upload document (inline)
     # ----------------------------------
-    if not st.session_state.report_doc_uploaded:
+    if not st.session_state.report_doc_uploaded and not st.session_state.report_generated:
         st.subheader("Upload Document To Generate Report")
     
         uploaded_files = st.file_uploader(
@@ -264,14 +264,12 @@ def render_report_page():
             else:
                 st.error("Could not load sections")
     
-            st.rerun()   # 🔑 refresh UI
-    
     # --------------------------------------------------
     # 2️⃣ Report mode
     # --------------------------------------------------
     mode = st.radio(
         "Report mode",
-        ["Structured sections"]
+        ["Structured sections", "Describe in plain English"]
     )
 
     sections = []
@@ -330,40 +328,48 @@ def render_report_page():
                         "action": "summarize",
                         "source_section": source
                     })
-    
-    # Later add user defined free-text mode where they can describe the report they want in their own words,
-    # and we use an LLM to parse it and decide which sections to extract/summarize.
 
-    # # --------------------------------------------------
-    # # 4️⃣ Free-text report mode
-    # # --------------------------------------------------
-    # else:
-    #     user_prompt = st.text_area(
-    #         "Describe the report you want",
-    #         placeholder="Generate a report with Introduction, Methods, Results and a Summary"
-    #     )
+
+    # --------------------------------------------------
+    # 4️⃣ Free-text report mode
+    # --------------------------------------------------
+
+
+    else:
+        user_prompt = st.text_area(
+            "Describe the report you want",
+            placeholder="Generate a report with Introduction, Methods, Results and a Summary"
+        )
 
     # --------------------------------------------------
     # 5️⃣ Generate report
     # --------------------------------------------------
     if st.button("Generate Report"):
-        payload = {
-            "session_id": st.session_state.session_id
-        }
 
         if mode == "Structured sections":
             if not sections:
                 st.error("Select at least one section.")
                 return
-            payload["sections"] = sections
-        else:
+
+            payload = {
+                "session_id": st.session_state.session_id,
+                "sections": sections
+            }
+            endpoint = f"{API_BASE}/report"   # deterministic path
+
+        else:  # Describe in plain English
             if not user_prompt:
                 st.error("Please describe the report.")
                 return
-            payload["user_prompt"] = user_prompt
+
+            payload = {
+                "session_id": st.session_state.session_id,
+                "user_prompt": user_prompt
+            }
+            endpoint = f"{API_BASE}/report/plan"  # 🔑 LLM planner path
 
         with st.spinner("Generating report…"):
-            resp = requests.post(REPORT_URL, json=payload)
+            resp = requests.post(endpoint, json=payload)
 
         if resp.status_code != 200:
             st.error(resp.text)
@@ -372,13 +378,11 @@ def render_report_page():
         st.success("Report generated successfully!")
         st.session_state.report_generated = True
 
-
         download_resp = requests.get(
             "http://api:8000/report/download",
             params={"session_id": st.session_state.session_id},
             timeout=30
         )
-
 
         if download_resp.status_code == 200:
             st.download_button(
@@ -389,6 +393,7 @@ def render_report_page():
             )
         else:
             st.error("Could not download report from backend")
+
 
         # ----------------------------------
         # Reset / New report button

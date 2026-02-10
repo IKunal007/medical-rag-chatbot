@@ -1,11 +1,10 @@
-from typing import Dict, Any, List
-from app.rag.llm import call_llm_function
-
+from typing import Dict, Any
+import json
 ALLOWED_ACTIONS = {
-    "extract_exact",
+    "extract_section",
     "extract_tables",
     "extract_figures",
-    "summarize",
+    "summarize_section",
 }
 
 
@@ -33,9 +32,12 @@ User request:
 Decide which sections are needed and what action to take for each.
 """
 
-    functions = [
-        {
+REPORT_PLAN_SCHEMA = [
+    {
+        "type": "function",
+        "function": {
             "name": "create_report_plan",
+            "description": "Creates a structured execution plan for report generation",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -47,8 +49,14 @@ Decide which sections are needed and what action to take for each.
                                 "name": {"type": "string"},
                                 "action": {
                                     "type": "string",
-                                    "enum": list(ALLOWED_ACTIONS)
+                                    "enum": [
+                                        "extract_section",
+                                        "extract_tables",
+                                        "extract_figures",
+                                        "summarize_section"
+                                    ]
                                 },
+                                "section_name": {"type": "string"},
                                 "source_section": {"type": "string"}
                             },
                             "required": ["name", "action"]
@@ -58,25 +66,35 @@ Decide which sections are needed and what action to take for each.
                 "required": ["sections"]
             }
         }
-    ]
+    }
+]
 
-    # 🔌 Call your LLM wrapper here
 
-    result = call_llm_function(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        functions=functions,
-        function_name="create_report_plan",
-    )
+import json
+from typing import Dict, Any
 
-    sections = result.get("sections", [])
+def validate_and_normalize_plan(result: Dict[str, Any]) -> Dict[str, Any]:
+    sections = result.get("sections")
 
-    # 🔒 Hard validation (important)
+    # 🔁 Handle stringified JSON from LLM
+    if isinstance(sections, str):
+        try:
+            sections = json.loads(sections)
+        except json.JSONDecodeError:
+            raise ValueError(f"Sections is not valid JSON: {sections}")
+
+    if not isinstance(sections, list):
+        raise ValueError(f"Invalid plan format (sections not list): {result}")
+
     for sec in sections:
+        if not isinstance(sec, dict):
+            raise ValueError(f"Invalid section entry (not dict): {sec}")
+
         if sec["action"] not in ALLOWED_ACTIONS:
             raise ValueError(f"Invalid action: {sec['action']}")
 
-        if sec["action"] == "summarize" and "source_section" not in sec:
+        if sec["action"] == "summarize_section" and "source_section" not in sec:
             raise ValueError("Summarize action requires source_section")
 
+    # 🔒 IMPORTANT: return the normalized structure
     return {"sections": sections}

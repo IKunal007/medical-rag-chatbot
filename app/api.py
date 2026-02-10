@@ -8,7 +8,8 @@ from app.schemas import (
     ChatRequest,
     ReportRequest,
     ReportResponse,
-    ResetRequest
+    ResetRequest,
+    ReportPlanRequest
 )
 from app.report.assembler import assemble_pdf
 from app.report.extractor import (
@@ -19,12 +20,12 @@ from app.report.extractor import (
 )
 from app.report.table_extractor import extract_pdf_tables, extract_docx_tables
 from app.report.figure_extractor import extract_pdf_figures
-from app.report.planner import plan_report_sections
+from app.report.planner import plan_report_sections, REPORT_PLAN_SCHEMA, validate_and_normalize_plan
 from app.report.heading_extractor import extract_markdown_headings
 
 from app.rag.retriever import retrieve
-from app.rag.prompt import build_prompt
-from app.rag.llm import call_llm
+from app.rag.prompt import build_prompt, build_report_planner_prompt
+from app.rag.llm import call_llm, call_llm_function
 from app.rag.utils import chunk_text, hash_text
 from app.rag.ingest import ingest_chunks
 from app.rag.loaders.pdf_loader import extract_pdf_sections
@@ -36,6 +37,10 @@ from app.memory.store import add_turn, get_memory
 from app.storage.file_resolver import get_uploaded_pdf
 from app.memory.utils import build_memory_aware_query, UPLOAD_DIR
 from fastapi.responses import FileResponse
+
+from app.report.executor import execute_plan
+from app.report.assembler import assemble_pdf
+
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -402,7 +407,7 @@ def generate_report(req: ReportRequest):
             }
 
         # -------- TABLES (PDF ONLY) --------
-        elif section.action == "extract_pdf_tables":
+        elif section.action == "extract_tables":
             if doc_type == "pdf":
                 tables = extract_pdf_tables(doc)
 
@@ -419,7 +424,7 @@ def generate_report(req: ReportRequest):
             }
 
         # -------- FIGURES (PDF ONLY) --------
-        elif section.action == "extract_pdf_figures":
+        elif section.action == "extract_figures":
             if doc_type != "pdf":
                 continue
 
@@ -430,7 +435,7 @@ def generate_report(req: ReportRequest):
 
         # -------- SUMMARY --------
         elif section.action == "summarize":
-            source = section.source_section
+            source = section.get("source_section")
             if not source or source not in report_state:
                 raise HTTPException(
                     status_code=400,
@@ -558,3 +563,37 @@ def serve_uploaded_file(filename: str):
     if not file_path.exists():
         raise HTTPException(404, "File not found")
     return FileResponse(file_path)
+
+@router.post("/report/plan")
+def plan_report(req: ReportPlanRequest):
+    session_id = req.session_id
+    user_prompt = req.user_prompt
+
+    # 0️⃣ Load document (THIS was missing)
+    filename = get_session_value(session_id, "active_pdf")
+    if not filename:
+        raise HTTPException(400, "No PDF uploaded in this session")
+
+    pdf_path = get_uploaded_pdf(filename)
+    doc = load_docling_document(pdf_path)
+
+    # 1️⃣ LLM planner (planning ONLY)
+    plan_json = call_llm_function(
+        system_prompt=build_report_planner_prompt(user_prompt),
+        user_prompt=user_prompt,
+        tools=REPORT_PLAN_SCHEMA
+    )
+
+    # 2️⃣ Validate & normalize
+    plan = validate_and_normalize_plan(plan_json)
+
+    assert isinstance(plan["sections"], list)
+    assert isinstance(plan["sections"][0], dict)
+
+    # 3️⃣ Deterministic execution (REAL data)
+    sections = execute_plan(plan, doc)
+
+    # 4️⃣ Assemble PDF
+    assemble_pdf(sections, session_id)
+
+    return {"status": "ok"}

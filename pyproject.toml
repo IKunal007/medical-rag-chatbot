@@ -24,4 +24,5 @@ dependencies = [
     "google-auth-httplib2>=0.1,<1.0",
     "docling[ocr]>=2.72.0",
     "reportlab>=4.4.9",
+    "ollama>=0.6.1",
 ]

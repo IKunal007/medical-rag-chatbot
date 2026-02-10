@@ -35,3 +35,7 @@ class ReportResponse(BaseModel):
 
 class ResetRequest(BaseModel):
     session_id: str
+
+class ReportPlanRequest(BaseModel):
+    session_id: str
+    user_prompt: str
