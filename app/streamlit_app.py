@@ -271,7 +271,7 @@ def render_report_page():
     # --------------------------------------------------
     mode = st.radio(
         "Report mode",
-        ["Structured sections", "Describe in plain English"]
+        ["Structured sections"]
     )
 
     sections = []
@@ -330,16 +330,18 @@ def render_report_page():
                         "action": "summarize",
                         "source_section": source
                     })
+    
+    # Later add user defined free-text mode where they can describe the report they want in their own words,
+    # and we use an LLM to parse it and decide which sections to extract/summarize.
 
-
-    # --------------------------------------------------
-    # 4️⃣ Free-text report mode
-    # --------------------------------------------------
-    else:
-        user_prompt = st.text_area(
-            "Describe the report you want",
-            placeholder="Generate a report with Introduction, Methods, Results and a Summary"
-        )
+    # # --------------------------------------------------
+    # # 4️⃣ Free-text report mode
+    # # --------------------------------------------------
+    # else:
+    #     user_prompt = st.text_area(
+    #         "Describe the report you want",
+    #         placeholder="Generate a report with Introduction, Methods, Results and a Summary"
+    #     )
 
     # --------------------------------------------------
     # 5️⃣ Generate report

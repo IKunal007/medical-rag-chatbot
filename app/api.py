@@ -64,6 +64,7 @@ def refusal_response():
         ]
     }
 
+
 def build_reference_link(location: str | None):
     if not location:
         return None
@@ -190,6 +191,7 @@ def chat(req: ChatRequest):
 @router.get("/health")
 def health():
     return {"status": "ok"}
+
 
 @router.post("/ingest")
 async def ingest(
@@ -334,6 +336,7 @@ async def ingest(
         "files": results
     }
 
+
 @router.post("/report", response_model=ReportResponse)
 def generate_report(req: ReportRequest):
 
@@ -458,6 +461,7 @@ def generate_report(req: ReportRequest):
 
     return {"report_path": str(output_path)}
 
+
 @router.get("/report/sections")
 def get_report_sections(session_id: str):
     # ---------------------------------------
@@ -513,6 +517,7 @@ def get_report_sections(session_id: str):
 
     return {"sections": headings}
 
+
 @router.get("/report/download")
 def download_report(session_id: str):
     report_path = get_session_value(session_id, "report_path")
@@ -536,6 +541,7 @@ def download_report(session_id: str):
         media_type="application/pdf",
         filename="medical_report.pdf"
     )
+
 
 @router.post("/report/reset")
 def reset_report_session(req: ResetRequest):
