@@ -399,25 +399,27 @@ def render_report_page():
         # Reset / New report button
         # ----------------------------------
         st.divider()
-        
+
     if st.button("🔄 Start New Report"):
-        # 1️⃣ Reset backend session
+
+        # 1️⃣ Reset backend
         requests.post(
             f"{API_BASE}/report/reset",
             json={"session_id": st.session_state.session_id},
             timeout=10
         )
-    
-        # 2️⃣ Reset frontend state
+
+        # 2️⃣ Clear frontend state
+        st.session_state.clear()
+
+        # 3️⃣ Reinitialize required keys
+        st.session_state.session_id = str(uuid.uuid4())
+        st.session_state.page = "Report"
         st.session_state.report_doc_uploaded = False
         st.session_state.available_sections = []
-        st.session_state.upload_success = False
-    
-        # 3️⃣ New session ID (important)
-        st.session_state.session_id = str(uuid.uuid4())
-    
+        st.session_state.report_generated = False
+
         st.rerun()
-        
 
 
 # ==========================================================

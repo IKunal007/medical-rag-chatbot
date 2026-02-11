@@ -114,6 +114,10 @@ def assemble_pdf(report_state, output_path):
                         elements.append(tbl)
                         elements.append(Spacer(1, 16))
 
+
+    print("Saving PDF for session:")
+    print("Final path:", output_path)
+
     doc.build(elements)
 
 

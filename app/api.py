@@ -435,7 +435,7 @@ def generate_report(req: ReportRequest):
 
         # -------- SUMMARY --------
         elif section.action == "summarize":
-            source = section.get("source_section")
+            source = section.source_section
             if not source or source not in report_state:
                 raise HTTPException(
                     status_code=400,
@@ -454,7 +454,7 @@ def generate_report(req: ReportRequest):
     REPORT_DIR = Path("app/store/reports")
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
-    output_path = REPORT_DIR / "report.pdf"
+    output_path = REPORT_DIR / f"{req.session_id}.pdf"
 
     assemble_pdf(report_state, output_path)
 
@@ -592,8 +592,13 @@ def plan_report(req: ReportPlanRequest):
 
     # 3️⃣ Deterministic execution (REAL data)
     sections = execute_plan(plan, doc)
+    REPORT_DIR = Path("app/store/reports")
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
+    output_path = REPORT_DIR / f"{req.session_id}.pdf"
     # 4️⃣ Assemble PDF
-    assemble_pdf(sections, session_id)
+    assemble_pdf(sections, output_path)
+
+    set_session_value(session_id, "report_path", str(output_path))
 
     return {"status": "ok"}

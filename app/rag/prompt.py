@@ -55,7 +55,7 @@ Question:
 
 
 def build_report_planner_prompt(user_request: str) -> str:
-    return """
+    return f"""
 You are a medical report planner.
 
 Your job is to decide which tools to call to generate the requested report.
@@ -69,7 +69,18 @@ Rules:
 - Preserve extracted text exactly
 - Return ONLY function calls in JSON
 - Do NOT answer in natural language
-- Return valid JSON ONLY
+- You MUST return a JSON object with this exact structure:
+
+{{
+  "sections": [
+    {{
+      "action": "extract_section | extract_tables | extract_figures | summarize_section",
+      "name": "section_identifier",
+      "section_name": "exact section name if applicable",
+      "source_section": "required only for summarize_section"
+    }}
+  ]
+}}
 
 User request:
 {user_request}
