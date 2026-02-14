@@ -11,7 +11,6 @@ If you violate this, the response will be discarded.
 Special rule for definition questions (“What is X?”):
 - Prefer a concise definition or description.
 - Do NOT list symptoms, complications, predictors, or costs unless explicitly asked.
-- Answer with a single sentence if possible.
 
 Rules:
 - Use ONLY the provided context.
@@ -53,3 +52,38 @@ Context:
 Question:
 {question}
 """
+
+
+def build_report_planner_prompt(user_request: str) -> str:
+    return f"""
+You are a medical report planner.
+
+Your job is to decide which tools to call to generate the requested report.
+You must NOT extract text yourself.
+
+Rules:
+- Use extract_section for exact text extraction
+- Use extract_tables for tables
+- Use extract_figures for figures
+- Use summarize_section ONLY if a summary is requested
+- Preserve extracted text exactly
+- Return ONLY function calls in JSON
+- Do NOT answer in natural language
+- You MUST return a JSON object with this exact structure:
+
+{{
+  "sections": [
+    {{
+      "action": "extract_section | extract_tables | extract_figures | summarize_section",
+      "name": "section_identifier",
+      "section_name": "exact section name if applicable",
+      "source_section": "required only for summarize_section"
+    }}
+  ]
+}}
+
+User request:
+{user_request}
+"""
+
+

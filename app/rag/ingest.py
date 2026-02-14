@@ -1,28 +1,33 @@
 import os
 import faiss
 import pickle
-from sentence_transformers import SentenceTransformer
-from app.rag.chunking import clean_extracted_text, chunk_by_sections
-from app.rag.utils import hash_text 
+from app.rag.chunking import clean_extracted_text, chunk_sections_safely
+from app.rag.utils import hash_text
+from app.memory.utils import DOCS_PATH, INDEX_PATH
 
-INDEX_PATH = "app/store/index.faiss"
-DOCS_PATH = "app/store/docs.pkl"
+_model = None
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Load or create FAISS index
+def get_embedding_model():
+    global _model
+    if _model is None:
+        from sentence_transformers import SentenceTransformer
+        _model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    return _model
+
+
 def load_or_create_index(dim: int):
-    if os.path.exists(INDEX_PATH):
-        return faiss.read_index(INDEX_PATH)
+    if INDEX_PATH.exists():
+        return faiss.read_index(str(INDEX_PATH))
     return faiss.IndexFlatL2(dim)
 
-# Load existing documents
+
+
 def load_existing_docs():
     if os.path.exists(DOCS_PATH):
         with open(DOCS_PATH, "rb") as f:
             return pickle.load(f)
     return []
-
 
 
 def ingest_text(
@@ -31,12 +36,8 @@ def ingest_text(
     page: int | None = None,
     location: str | None = None,
 ):
-    """
-    Convert raw text into paragraph-based chunks with metadata,
-    then ingest them into FAISS.
-    """
     clean_text = clean_extracted_text(text)
-    section_chunks = chunk_by_sections(clean_text)
+    section_chunks = chunk_sections_safely(clean_text)
 
     chunks_with_meta = []
 
@@ -48,7 +49,7 @@ def ingest_text(
         chunks_with_meta.append({
             "text": chunk["text"],
             "section": chunk["section"],
-            "section_level": chunk.get("level", 1),  # heuristic, optional
+            "section_level": chunk.get("level", 1),
             "chunk_hash": hash_text(chunk["text"]),
             "source": source,
             "page": page,
@@ -59,20 +60,20 @@ def ingest_text(
     return ingest_chunks(chunks_with_meta)
 
 
-# Ingest chunks with metadata
 def ingest_chunks(chunks_with_meta: list[dict]) -> int:
     if not chunks_with_meta:
         return 0
 
-    os.makedirs("app/store", exist_ok=True)
+    os.makedirs("store", exist_ok=True)
 
-    # Load existing docs + hashes
     existing_docs = load_existing_docs()
     existing_hashes = {
-        d["chunk_hash"] for d in existing_docs if "chunk_hash" in d
+        d["chunk_hash"]
+        for d in existing_docs
+        if d.get("chunk_hash") and d.get("source") == chunks_with_meta[0].get("source")
     }
 
-    # Deduplicate
+
     new_chunks = []
     new_texts = []
 
@@ -80,14 +81,13 @@ def ingest_chunks(chunks_with_meta: list[dict]) -> int:
         chunk_hash = c.get("chunk_hash")
         if chunk_hash and chunk_hash in existing_hashes:
             continue
-    
         new_chunks.append(c)
         new_texts.append(c["text"])
 
     if not new_chunks:
-        return 0  # nothing new
+        return 0
 
-    # Embed ONLY new chunks
+    model = get_embedding_model()
     embeddings = model.encode(
         new_texts,
         batch_size=32,
@@ -95,18 +95,18 @@ def ingest_chunks(chunks_with_meta: list[dict]) -> int:
         normalize_embeddings=True,
     )
 
-
-    # Load or create FAISS index
     index = load_or_create_index(embeddings.shape[1])
-    assert index.d == embeddings.shape[1]
-
     index.add(embeddings)
 
-    # Persist
     existing_docs.extend(new_chunks)
 
-    faiss.write_index(index, INDEX_PATH)
+    faiss.write_index(index, str(INDEX_PATH))
     with open(DOCS_PATH, "wb") as f:
         pickle.dump(existing_docs, f)
+    
+    index = faiss.read_index(str(INDEX_PATH))
+    print("FAISS index size:", index.ntotal)
+    print("Docs stored:", len(load_existing_docs()))
+
 
     return len(new_chunks)

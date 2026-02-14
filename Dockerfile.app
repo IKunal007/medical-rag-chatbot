@@ -6,6 +6,11 @@ RUN apt-get update && apt-get install -y \
     poppler-utils \
     libgl1 \
     curl \
+    libglib2.0-0 \
+    libgl1 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

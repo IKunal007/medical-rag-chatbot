@@ -6,9 +6,11 @@ This project implements a medical document chatbot using a **Retrieval-Augmented
 
 The system answers user questions **strictly from uploaded medical documents**, ensuring grounded, citation-backed responses with explicit refusal when information is not present.
 
-The design prioritizes **determinism, safety, and architectural clarity**, with a strict separation between frontend and backend responsibilities.
+The design prioritizes **determinism, safety, and architectural clarity**, with a strict separation between frontend and backend responsibilities
 
-This project intentionally **does not perform report generation, summarization beyond retrieved content, or PDF generation**.
+In addition to question answering, the system supports structured medical report generation from uploaded documents only.
+
+Report generation is strictly grounded in retrieved content and follows the same safety, determinism, and citation principles as chat-based Q&A.
 
 ---
 
@@ -34,12 +36,15 @@ This project addresses that issue by ensuring:
 - Retrieves relevant document chunks deterministically
 - Generates grounded answers with citations
 - Maintains session-based conversational memory
+- Generates structured medical reports from uploaded documents
+- Supports section-based report creation (e.g., Introduction, Findings, Summary)
+- Uses the same retrieval pipeline for both chat and reports
+- Ensures reports are grounded strictly in document content
 
 ### What the system does not do
 
 - No hallucinated or speculative answers
 - No free-form summarization beyond retrieved text
-- No report or PDF generation
 - No direct LLM access to full documents
 - No business logic in the frontend
 
@@ -100,6 +105,46 @@ The system follows a clean frontend-backend separation.
 8. Backend returns answer with citations
 9. Streamlit renders the response
 
+## Report Generation Flow
+
+1. User uploads a medical document
+2. Backend ingests and indexes the document
+3. User selects report mode (structured sections or free-text)
+4. Backend retrieves relevant chunks per section
+5. A structured, grounded prompt is constructed
+6. LLM generates report sections with citations
+7. Backend assembles the final report
+8. Report is returned as a downloadable PDF
+
+
+## Report Generation
+
+Beyond conversational Q&A, the system supports **structured report generation** from uploaded medical documents.
+
+### Key Characteristics
+
+- Reports are generated **only from retrieved document content**
+- Users can request specific sections such as:
+  - Introduction
+  - Clinical Findings
+  - Tables
+  - Figures
+  - Summary
+- The LLM never sees full documents
+- Each report section is backed by retrieved chunks
+- If requested information is missing, the system explicitly refuses
+
+### How It Works
+
+1. User uploads a document
+2. Backend ingests and indexes the document
+3. User selects report sections or provides a free-text report request
+4. Backend retrieves relevant chunks per section
+5. LLM generates section-wise content grounded in retrieval
+6. Final report is returned as a downloadable PDF
+
+Report generation reuses the **same retrieval, chunking, and safety logic** as chat-based answering.
+
 ### Example Request Payload
 
 ```json
@@ -135,6 +180,7 @@ Example Response Payload
 - FastAPI
 - Uvicorn
 - Pydantic
+- docling
 
 ### Frontend
 
@@ -150,7 +196,7 @@ Example Response Payload
 
 ### LLM
 
-- Ollama (local inference)
+- Ollama Model : llama 3.1:8B(local inference)
 
 ### Dependency Management
 
@@ -222,15 +268,5 @@ ollama serve
 - Fully functional end-to-end
 - Stable Docker-based environment
 - Clean architectural separation
-- Ready for demo and evaluation
-- Report and PDF generation intentionally excluded
+- Report and PDF generation added
 
----
-
-## Future Improvements
-
-- Retrieval evaluation metrics
-- Chunk-level confidence scoring
-- Support for additional document formats
-- Authentication and access control
-- Improved memory summarization
