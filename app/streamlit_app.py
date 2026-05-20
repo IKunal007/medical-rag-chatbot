@@ -2,12 +2,13 @@ import streamlit as st
 import requests
 import uuid
 import time
+import html
 
 # ----------------------------
 # Page config MUST come first
 # ----------------------------
 st.set_page_config(
-    page_title="Medical RAG Chatbot",
+    page_title="IntelliDoc Chatbot",
     layout="centered"
 )
 
@@ -77,7 +78,196 @@ nav_button(" Upload Documents", "Upload")
 nav_button(" Report Generation", "Report")
 
 st.sidebar.divider()
-st.sidebar.caption("Medical RAG System • v1.0")
+st.sidebar.caption("Medical RAG System • v2.3")
+
+
+CHAT_CSS = """
+<style>
+    .main .block-container {
+        max-width: 920px;
+        padding-top: 2rem;
+        padding-bottom: 5rem;
+    }
+
+    .chat-hero {
+        border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+        margin-bottom: 1.2rem;
+        padding-bottom: 1rem;
+    }
+
+    .chat-title {
+        font-size: 2rem;
+        font-weight: 750;
+        line-height: 1.15;
+        margin: 0;
+        color: #f8fafc;
+    }
+
+    .chat-status-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin-top: 0.75rem;
+    }
+
+    .chat-pill {
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 999px;
+        color: #cbd5e1;
+        font-size: 0.78rem;
+        padding: 0.22rem 0.62rem;
+        background: rgba(15, 23, 42, 0.62);
+    }
+
+    .chat-window {
+        display: flex;
+        flex-direction: column;
+        gap: 1.35rem;
+        margin-top: 1.2rem;
+    }
+
+    .message-row {
+        display: flex;
+        gap: 0.65rem;
+        align-items: flex-start;
+        margin-bottom: 0.15rem;
+    }
+
+    .message-row.user {
+        justify-content: flex-end;
+        margin-top: 0.35rem;
+        margin-bottom: 0.1rem;
+    }
+
+    .message-row.user + .message-row.assistant {
+        margin-top: 0.65rem;
+    }
+
+    .avatar {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.78rem;
+        font-weight: 700;
+        flex: 0 0 2rem;
+        margin-top: 0.1rem;
+    }
+
+    .assistant .avatar {
+        background: #64748b;
+        color: #f8fafc;
+    }
+
+    .user .avatar {
+        background: #475569;
+        color: #f8fafc;
+        order: 2;
+    }
+
+    .bubble {
+        max-width: min(720px, 82%);
+        border-radius: 8px;
+        padding: 0.78rem 0.95rem;
+        line-height: 1.55;
+        font-size: 0.98rem;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    .assistant .bubble {
+        background: rgba(31, 41, 55, 0.82);
+        color: #f1f5f9;
+        border-color: rgba(148, 163, 184, 0.24);
+    }
+
+    .user .bubble {
+        background: rgba(71, 85, 105, 0.92);
+        color: #f8fafc;
+        border-color: rgba(203, 213, 225, 0.24);
+    }
+
+    .sources {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.42rem;
+        margin-top: 0.68rem;
+    }
+
+    .source-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 1.65rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.32);
+        color: #cbd5e1 !important;
+        background: rgba(51, 65, 85, 0.54);
+        padding: 0.18rem 0.58rem;
+        font-size: 0.78rem;
+        text-decoration: none !important;
+    }
+
+    .empty-chat {
+        border: 1px dashed rgba(148, 163, 184, 0.28);
+        border-radius: 8px;
+        padding: 1.1rem;
+        color: #94a3b8;
+        background: rgba(15, 23, 42, 0.42);
+        margin-top: 0.75rem;
+    }
+
+    div[data-testid="stChatInput"] {
+        border-top: 1px solid rgba(148, 163, 184, 0.16);
+        background: rgba(2, 6, 23, 0.76);
+    }
+</style>
+"""
+
+
+def render_chat_message(role, content, answers=None):
+    safe_content = html.escape(content or "").replace("\n", "<br>")
+    row_class = "user" if role == "user" else "assistant"
+    avatar = "You" if role == "user" else "AI"
+
+    sources_html = ""
+    if answers:
+        chips = []
+        seen = set()
+        for answer in answers:
+            doc = answer.get("document")
+            link = answer.get("link")
+            page = answer.get("page")
+
+            if not doc or not link:
+                continue
+
+            label = f"{doc}"
+            if page is not None:
+                label = f"{label} · page {page}"
+
+            key = (label, link)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            chips.append(
+                f'<a class="source-chip" href="{html.escape(link)}" target="_blank">'
+                f'{html.escape(label)}</a>'
+            )
+
+        if chips:
+            sources_html = f'<div class="sources">{"".join(chips)}</div>'
+
+    st.markdown(
+        f"""
+        <div class="message-row {row_class}">
+            <div class="avatar">{avatar}</div>
+            <div class="bubble">{safe_content}{sources_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # ==========================================================
 # 📤 UPLOAD PAGE
@@ -136,11 +326,34 @@ def render_upload_page():
 # 💬 CHAT PAGE
 # ==========================================================
 def render_chat_page():
-    st.title(" Medical RAG Chatbot")
+    st.markdown(CHAT_CSS, unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="chat-hero">
+            <h1 class="chat-title">IntelliDoc Chat</h1>
+            <div class="chat-status-row">
+                <span class="chat-pill">Ready</span>
+                <span class="chat-pill">Session active</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
+    st.markdown('<div class="chat-window">', unsafe_allow_html=True)
+    if not st.session_state.messages:
+        st.markdown(
+            '<div class="empty-chat">No messages yet.</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        for msg in st.session_state.messages:
+            render_chat_message(
+                msg["role"],
+                msg["content"],
+                answers=msg.get("answers")
+            )
+    st.markdown('</div>', unsafe_allow_html=True)
 
     user_query = st.chat_input("Ask a question about the uploaded documents")
 
@@ -150,53 +363,46 @@ def render_chat_page():
             "content": user_query
         })
 
-        with st.chat_message("user"):
-            st.write(user_query)
+        render_chat_message("user", user_query)
 
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking…"):
-                try:
-                    resp = requests.post(
-                        CHAT_URL,
-                        json={
-                            "query": user_query,
-                            "session_id": st.session_state.session_id
-                        },
-                        timeout=120
-                    )
-                except Exception:
-                    st.error("Backend unavailable.")
-                    return
-
-            if resp.status_code != 200:
-                st.error("Backend error.")
+        with st.spinner("Thinking…"):
+            try:
+                resp = requests.post(
+                    CHAT_URL,
+                    json={
+                        "query": user_query,
+                        "session_id": st.session_state.session_id
+                    },
+                    timeout=120
+                )
+            except Exception:
+                st.error("Backend unavailable.")
                 return
 
-            data = resp.json()
-            answers = data.get("answer", [])
+        if resp.status_code != 200:
+            st.error("Backend error.")
+            return
 
-            if not answers:
-                reply = "I don't know. The information is not available in the uploaded documents."
-                st.write(reply)
-            else:
-                full_text = []
-                for a in answers:
-                    text = a["text"]
-                    doc = a.get("document")
-                    page = a.get("page")
-                    link = a.get("link")
+        data = resp.json()
+        answers = data.get("answer", [])
 
-                    st.write(text)
-                    full_text.append(text)
+        if not answers:
+            reply = "I don't know. The information is not available in the uploaded documents."
+            answers = []
+        else:
+            full_text = []
+            for a in answers:
+                text = a["text"]
+                full_text.append(text)
 
-                    if doc and link:
-                        st.markdown(f" [{doc} · page {page}]({link})")
+            reply = " ".join(full_text)
 
-                reply = " ".join(full_text)
+        render_chat_message("assistant", reply, answers=answers)
 
         st.session_state.messages.append({
             "role": "assistant",
-            "content": reply
+            "content": reply,
+            "answers": answers
         })
 
 

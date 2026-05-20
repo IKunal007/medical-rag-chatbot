@@ -19,11 +19,32 @@ def build_memory_aware_query(query: str, memory: list):
     if not memory:
         return query
 
+    q = query.lower().strip()
+    followup_markers = {
+        "it",
+        "its",
+        "this",
+        "that",
+        "they",
+        "them",
+        "these",
+        "those",
+        "same",
+        "above",
+        "previous",
+    }
+    words = set(q.replace("?", "").split())
+
+    # Only add conversation memory for short follow-up questions. Adding every
+    # previous user turn pollutes retrieval when the topic changes.
+    if len(words) > 10 or not words.intersection(followup_markers):
+        return query
+
     last_user_turns = [
         m["content"] for m in memory if m["role"] == "user"
     ]
 
-    context = " ".join(last_user_turns[-2:])
+    context = " ".join(last_user_turns[-1:])
     return f"{context}\nCurrent question: {query}"
 
 

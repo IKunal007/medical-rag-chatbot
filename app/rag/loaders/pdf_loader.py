@@ -85,3 +85,31 @@ def extract_pdf_sections(file_path: str, source_name: str):
                     })
 
     return chunks_with_meta
+
+
+def extract_pdf_section_titles(file_path: str) -> list[str]:
+    """
+    Fast heading-only extraction for report section dropdowns.
+    Reads the uploaded PDF directly without Docling.
+    """
+    titles = []
+    seen = set()
+
+    with pdfplumber.open(file_path) as pdf:
+        for page in pdf.pages:
+            raw_text = page.extract_text()
+            if not raw_text:
+                continue
+
+            for line in raw_text.split("\n"):
+                title = " ".join(line.strip().split())
+                title_l = title.lower()
+
+                if not title or title_l in seen:
+                    continue
+
+                if is_heading(title):
+                    titles.append(title)
+                    seen.add(title_l)
+
+    return titles

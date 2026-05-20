@@ -1,5 +1,21 @@
+import re
 import requests, json
 from app.memory.utils import OLLAMA_BASE_URL
+
+
+def _parse_json_response(raw: str) -> dict:
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # Some local models wrap JSON in prose or code fences. Extract the first
+    # JSON object so one formatting slip does not become a false refusal.
+    match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
+    if match:
+        return json.loads(match.group(0))
+
+    raise json.JSONDecodeError("No JSON object found", raw, 0)
 
 
 def call_llm(prompt: str) -> dict:
@@ -19,12 +35,11 @@ def call_llm(prompt: str) -> dict:
 
     raw = res.json().get("response", "").strip()
 
-    # Case 1: Valid JSON
     try:
-        return json.loads(raw)
+        return _parse_json_response(raw)
 
-    # Case 2: LLM violated format → force safe refusal
     except json.JSONDecodeError:
+        print("LLM JSON parse failed. Raw preview:", raw[:500])
         return {
             "answer": [
                 {

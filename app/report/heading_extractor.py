@@ -1,5 +1,4 @@
 import re
-from app.report.extractor import extract_exact_section
 
 def extract_markdown_headings(doc):
     """
@@ -19,13 +18,13 @@ def extract_markdown_headings(doc):
         "conflicts of interest",
     }
 
-    # Capture markdown headings
-    pattern = re.compile(r"^(#{1,6})\s+(.*)$", re.MULTILINE)
-    matches = pattern.findall(md)
+    heading_pattern = re.compile(r"^(#{1,6})\s+(.*)$", re.MULTILINE)
+    matches = list(heading_pattern.finditer(md))
 
     cleaned = []
 
-    for _, raw_title in matches:
+    for idx, match in enumerate(matches):
+        raw_title = match.group(2)
         title = raw_title.strip()
 
         # Normalize
@@ -34,8 +33,9 @@ def extract_markdown_headings(doc):
         if title_l in SKIP_TITLES:
             continue  # skip non-content sections
 
-        # Extract text for this section
-        text = extract_exact_section(doc, title)
+        start = match.end()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(md)
+        text = md[start:end].strip()
 
         if not text:
             continue

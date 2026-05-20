@@ -5,7 +5,11 @@ from app.rag.llm import call_llm_raw
 from docx import Document
 
 
-def load_docling_document(pdf_path: Path):
+def load_docling_document(
+    pdf_path: Path,
+    include_tables: bool = True,
+    include_images: bool = True,
+):
     """
     Loads a PDF into a Docling document object.
     Heavy imports are done lazily.
@@ -27,12 +31,57 @@ def load_docling_document(pdf_path: Path):
 
     pipeline = PdfPipelineOptions()
     pipeline.do_ocr = False
-    pipeline.do_table_structure = True
-    pipeline.generate_picture_images = True
-    pipeline.images_scale = 3.0
-    pipeline.table_structure_options = TableStructureOptions(
-        do_cell_matching=True
+    pipeline.do_table_structure = include_tables
+    pipeline.generate_picture_images = include_images
+
+    if include_images:
+        pipeline.images_scale = 3.0
+
+    if include_tables:
+        pipeline.table_structure_options = TableStructureOptions(
+            do_cell_matching=True
+        )
+    pipeline.accelerator_options = AcceleratorOptions(
+        num_threads=4,
+        device=AcceleratorDevice.AUTO,
     )
+
+    converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_options=pipeline
+            )
+        }
+    )
+
+    result = converter.convert(pdf_path)
+
+    if result.status != "success":
+        raise RuntimeError("Docling conversion failed")
+
+    return result.document
+
+
+def load_docling_document_for_headings(pdf_path: Path):
+    """
+    Loads a PDF with the lightest Docling pipeline needed for section headings.
+    """
+
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"PDF not found: {pdf_path}")
+
+    from docling.document_converter import DocumentConverter, PdfFormatOption
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.datamodel.accelerator_options import (
+        AcceleratorOptions,
+        AcceleratorDevice,
+    )
+
+    pipeline = PdfPipelineOptions()
+    pipeline.do_ocr = False
+    pipeline.do_table_structure = False
+    pipeline.generate_picture_images = False
     pipeline.accelerator_options = AcceleratorOptions(
         num_threads=4,
         device=AcceleratorDevice.AUTO,
